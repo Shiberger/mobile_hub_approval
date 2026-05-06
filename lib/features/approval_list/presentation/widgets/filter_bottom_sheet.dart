@@ -1,110 +1,82 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/approval_item.dart';
-import '../bloc/approval_list_bloc.dart';
+import '../providers/approval_providers.dart';
 
-class FilterBottomSheet extends StatelessWidget {
+class FilterBottomSheet extends ConsumerWidget {
   const FilterBottomSheet({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(approvalListNotifierProvider.notifier);
+
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Filter by Status', style: Theme.of(context).textTheme.titleMedium),
+          Text('Filter by Status',
+              style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             children: [
-              _FilterChip(
-                label: 'All',
-                onTap: () {
-                  context.read<ApprovalListBloc>().add(const LoadApprovalList());
+              ActionChip(
+                label: const Text('All Pending'),
+                onPressed: () {
+                  notifier.filter();
                   Navigator.pop(context);
                 },
               ),
-              _FilterChip(
-                label: 'Pending',
-                onTap: () {
-                  context.read<ApprovalListBloc>().add(
-                    const FilterApprovalList(status: ApprovalStatus.pending),
-                  );
+              ActionChip(
+                label: const Text('Approved'),
+                onPressed: () {
+                  notifier.filter(status: ApprovalStatus.approved);
                   Navigator.pop(context);
                 },
               ),
-              _FilterChip(
-                label: 'Approved',
-                onTap: () {
-                  context.read<ApprovalListBloc>().add(
-                    const FilterApprovalList(status: ApprovalStatus.approved),
-                  );
-                  Navigator.pop(context);
-                },
-              ),
-              _FilterChip(
-                label: 'Rejected',
-                onTap: () {
-                  context.read<ApprovalListBloc>().add(
-                    const FilterApprovalList(status: ApprovalStatus.rejected),
-                  );
+              ActionChip(
+                label: const Text('Rejected'),
+                onPressed: () {
+                  notifier.filter(status: ApprovalStatus.rejected);
                   Navigator.pop(context);
                 },
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text('Filter by Source', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 20),
+          Text('Filter by Source',
+              style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             children: [
-              _FilterChip(
-                label: 'HR',
-                onTap: () {
-                  context.read<ApprovalListBloc>().add(
-                    const FilterApprovalList(source: ApprovalSource.hr),
-                  );
+              ActionChip(
+                label: const Text('HR'),
+                onPressed: () {
+                  notifier.filter(source: ApprovalSource.hr);
                   Navigator.pop(context);
                 },
               ),
-              _FilterChip(
-                label: 'Finance',
-                onTap: () {
-                  context.read<ApprovalListBloc>().add(
-                    const FilterApprovalList(source: ApprovalSource.finance),
-                  );
+              ActionChip(
+                label: const Text('Finance'),
+                onPressed: () {
+                  notifier.filter(source: ApprovalSource.finance);
                   Navigator.pop(context);
                 },
               ),
-              _FilterChip(
-                label: 'Procurement',
-                onTap: () {
-                  context.read<ApprovalListBloc>().add(
-                    const FilterApprovalList(source: ApprovalSource.procurement),
-                  );
+              ActionChip(
+                label: const Text('Procurement'),
+                onPressed: () {
+                  notifier.filter(source: ApprovalSource.procurement);
                   Navigator.pop(context);
                 },
               ),
             ],
           ),
-          const SizedBox(height: 24),
         ],
       ),
     );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _FilterChip({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return ActionChip(label: Text(label), onPressed: onTap);
   }
 }

@@ -1,75 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../bloc/approval_list_bloc.dart';
+import '../providers/approval_providers.dart';
 import '../widgets/approval_item_card.dart';
 import '../../domain/entities/approval_item.dart';
 
-class HistoryPage extends StatefulWidget {
+class HistoryPage extends ConsumerWidget {
   const HistoryPage({super.key});
 
   @override
-  State<HistoryPage> createState() => _HistoryPageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(historyNotifierProvider);
+    final notifier = ref.read(historyNotifierProvider.notifier);
 
-class _HistoryPageState extends State<HistoryPage> {
-  ApprovalStatus? _activeFilter;
-
-  @override
-  void initState() {
-    super.initState();
-    context.read<ApprovalListBloc>().add(const LoadHistory());
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('History'),
-      ),
+      appBar: AppBar(title: const Text('History')),
       body: Column(
         children: [
-          _FilterBar(
-            active: _activeFilter,
-            onChanged: (status) {
-              setState(() => _activeFilter = status);
-              if (status == null) {
-                context.read<ApprovalListBloc>().add(const LoadHistory());
-              } else {
-                context.read<ApprovalListBloc>().add(
-                  FilterApprovalList(status: status),
-                );
-              }
-            },
-          ),
+          _FilterBar(notifier: notifier),
           Expanded(
-            child: BlocBuilder<ApprovalListBloc, ApprovalListState>(
-              builder: (context, state) {
-                if (state is ApprovalListLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (state is ApprovalListError) {
-                  return Center(child: Text(state.message));
-                }
-                if (state is ApprovalListLoaded) {
-                  if (state.items.isEmpty) {
-                    return const _EmptyHistory();
-                  }
-                  return ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    itemCount: state.items.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final item = state.items[index];
-                      return ApprovalItemCard(
-                        item: item,
-                        onTap: () => context.push('/approvals/${item.id}', extra: item),
-                      );
-                    },
-                  );
-                }
-                return const SizedBox.shrink();
-              },
+            child: state.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Text(e.toString().replaceAll('Exception: ', '')),
+              ),
+              data: (items) => items.isEmpty
+                  ? const _EmptyHistory()
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) => ApprovalItemCard(
+                        item: items[index],
+                        onTap: () => context.push(
+                          '/approvals/${items[index].id}',
+                          extra: items[index],
+                        ),
+                      ),
+                    ),
             ),
           ),
         ],
@@ -78,11 +47,22 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 }
 
-class _FilterBar extends StatelessWidget {
-  final ApprovalStatus? active;
-  final ValueChanged<ApprovalStatus?> onChanged;
+class _FilterBar extends StatefulWidget {
+  final HistoryNotifier notifier;
 
-  const _FilterBar({required this.active, required this.onChanged});
+  const _FilterBar({required this.notifier});
+
+  @override
+  State<_FilterBar> createState() => _FilterBarState();
+}
+
+class _FilterBarState extends State<_FilterBar> {
+  ApprovalStatus? _active;
+
+  void _select(ApprovalStatus? status) {
+    setState(() => _active = status);
+    widget.notifier.filter(status);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,38 +71,25 @@ class _FilterBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          _Chip(label: 'All', selected: active == null, onTap: () => onChanged(null)),
-          const SizedBox(width: 8),
-          _Chip(
-            label: 'Approved',
-            selected: active == ApprovalStatus.approved,
-            onTap: () => onChanged(ApprovalStatus.approved),
+          FilterChip(
+            label: const Text('All'),
+            selected: _active == null,
+            onSelected: (_) => _select(null),
           ),
           const SizedBox(width: 8),
-          _Chip(
-            label: 'Rejected',
-            selected: active == ApprovalStatus.rejected,
-            onTap: () => onChanged(ApprovalStatus.rejected),
+          FilterChip(
+            label: const Text('Approved'),
+            selected: _active == ApprovalStatus.approved,
+            onSelected: (_) => _select(ApprovalStatus.approved),
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
+            label: const Text('Rejected'),
+            selected: _active == ApprovalStatus.rejected,
+            onSelected: (_) => _select(ApprovalStatus.rejected),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _Chip({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
     );
   }
 }
@@ -140,12 +107,18 @@ class _EmptyHistory extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'No history yet',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey[500]),
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: Colors.grey[500]),
           ),
           const SizedBox(height: 4),
           Text(
             'Approved and rejected items will appear here',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[400]),
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: Colors.grey[400]),
           ),
         ],
       ),

@@ -1,26 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../bloc/approval_list_bloc.dart';
+import '../providers/approval_providers.dart';
 import '../widgets/approval_item_card.dart';
 import '../widgets/filter_bottom_sheet.dart';
+import '../../domain/entities/approval_item.dart';
 import '../../../../core/theme/app_theme.dart';
 
-class ApprovalListPage extends StatefulWidget {
+class ApprovalListPage extends ConsumerStatefulWidget {
   const ApprovalListPage({super.key});
 
   @override
-  State<ApprovalListPage> createState() => _ApprovalListPageState();
+  ConsumerState<ApprovalListPage> createState() => _ApprovalListPageState();
 }
 
-class _ApprovalListPageState extends State<ApprovalListPage> {
+class _ApprovalListPageState extends ConsumerState<ApprovalListPage> {
   final _searchController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    context.read<ApprovalListBloc>().add(const LoadApprovalList());
-  }
 
   @override
   void dispose() {
@@ -28,16 +23,17 @@ class _ApprovalListPageState extends State<ApprovalListPage> {
     super.dispose();
   }
 
-  Future<void> _openDetail(BuildContext context, item) async {
-    final bloc = context.read<ApprovalListBloc>();
+  Future<void> _openDetail(ApprovalItem item) async {
     final result = await context.push('/approvals/${item.id}', extra: item);
     if (result == true && mounted) {
-      bloc.add(const LoadApprovalList());
+      ref.invalidate(approvalListNotifierProvider);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(approvalListNotifierProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Approvals'),
@@ -50,7 +46,7 @@ class _ApprovalListPageState extends State<ApprovalListPage> {
           IconButton(
             icon: const Icon(Icons.filter_list),
             tooltip: 'Filter',
-            onPressed: () => _showFilterSheet(context),
+            onPressed: _showFilterSheet,
           ),
         ],
       ),
@@ -63,47 +59,33 @@ class _ApprovalListPageState extends State<ApprovalListPage> {
               hintText: 'Search approvals...',
               leading: const Icon(Icons.search),
               elevation: const WidgetStatePropertyAll(1),
-              onChanged: (query) {
-                context.read<ApprovalListBloc>().add(SearchApprovalList(query));
-              },
+              onChanged: (query) =>
+                  ref.read(approvalListNotifierProvider.notifier).search(query),
             ),
           ),
           Expanded(
-            child: BlocBuilder<ApprovalListBloc, ApprovalListState>(
-              builder: (context, state) {
-                if (state is ApprovalListLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (state is ApprovalListError) {
-                  return _ErrorView(
-                    message: state.message,
-                    onRetry: () => context.read<ApprovalListBloc>().add(const LoadApprovalList()),
-                  );
-                }
-                if (state is ApprovalListLoaded) {
-                  if (state.items.isEmpty) {
-                    return const _EmptyView();
-                  }
-                  return RefreshIndicator(
-                    onRefresh: () async {
-                      context.read<ApprovalListBloc>().add(const LoadApprovalList());
-                    },
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      itemCount: state.items.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final item = state.items[index];
-                        return ApprovalItemCard(
-                          item: item,
-                          onTap: () => _openDetail(context, item),
-                        );
-                      },
+            child: state.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => _ErrorView(
+                message: e.toString().replaceAll('Exception: ', ''),
+                onRetry: () => ref.invalidate(approvalListNotifierProvider),
+              ),
+              data: (items) => items.isEmpty
+                  ? const _EmptyView()
+                  : RefreshIndicator(
+                      onRefresh: () =>
+                          ref.refresh(approvalListNotifierProvider.future),
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        itemCount: items.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) => ApprovalItemCard(
+                          item: items[index],
+                          onTap: () => _openDetail(items[index]),
+                        ),
+                      ),
                     ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
             ),
           ),
         ],
@@ -111,13 +93,10 @@ class _ApprovalListPageState extends State<ApprovalListPage> {
     );
   }
 
-  void _showFilterSheet(BuildContext context) {
+  void _showFilterSheet() {
     showModalBottomSheet(
       context: context,
-      builder: (_) => BlocProvider.value(
-        value: context.read<ApprovalListBloc>(),
-        child: const FilterBottomSheet(),
-      ),
+      builder: (_) => const FilterBottomSheet(),
     );
   }
 }
@@ -135,12 +114,18 @@ class _EmptyView extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'All caught up!',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey[500]),
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: Colors.grey[500]),
           ),
           const SizedBox(height: 4),
           Text(
             'No pending approvals at this time',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[400]),
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: Colors.grey[400]),
           ),
         ],
       ),
@@ -160,7 +145,8 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, size: 64, color: AppTheme.rejectedColor),
+          const Icon(Icons.error_outline,
+              size: 64, color: AppTheme.rejectedColor),
           const SizedBox(height: 16),
           Text(message, textAlign: TextAlign.center),
           const SizedBox(height: 16),

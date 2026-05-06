@@ -1,52 +1,35 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../bloc/dashboard_bloc.dart';
+import '../providers/dashboard_provider.dart';
 import '../widgets/summary_card.dart';
-import '../../../../core/theme/app_theme.dart';
 import '../../domain/entities/dashboard_summary.dart';
+import '../../../../core/theme/app_theme.dart';
 
-class DashboardPage extends StatefulWidget {
+class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
 
   @override
-  State<DashboardPage> createState() => _DashboardPageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(dashboardNotifierProvider);
 
-class _DashboardPageState extends State<DashboardPage> {
-  @override
-  void initState() {
-    super.initState();
-    context.read<DashboardBloc>().add(const LoadDashboard());
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mobile Hub Approval'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => context.read<DashboardBloc>().add(const LoadDashboard()),
+            onPressed: () => ref.invalidate(dashboardNotifierProvider),
           ),
         ],
       ),
-      body: BlocBuilder<DashboardBloc, DashboardState>(
-        builder: (context, state) {
-          if (state is DashboardLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (state is DashboardError) {
-            return _ErrorView(message: state.message, onRetry: () {
-              context.read<DashboardBloc>().add(const LoadDashboard());
-            });
-          }
-          if (state is DashboardLoaded) {
-            return _DashboardContent(summary: state.summary);
-          }
-          return const SizedBox.shrink();
-        },
+      body: state.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => _ErrorView(
+          message: e.toString().replaceAll('Exception: ', ''),
+          onRetry: () => ref.invalidate(dashboardNotifierProvider),
+        ),
+        data: (summary) => _DashboardContent(summary: summary),
       ),
     );
   }
@@ -66,7 +49,10 @@ class _DashboardContent extends StatelessWidget {
         children: [
           Text(
             'Overview',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           Row(

@@ -12,18 +12,14 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
 
-  # State Management
-  flutter_bloc: ^9.1.1
-  equatable: ^2.0.7
-
-  # Dependency Injection
-  get_it: ^8.0.3
+  # State Management & DI
+  flutter_riverpod: ^2.6.1
 
   # Networking
   dio: ^5.8.0+1
   connectivity_plus: ^6.1.4
 
-  # Functional Programming (Either, Option for error handling)
+  # Functional Programming
   dartz: ^0.10.1
 
   # Local Storage
@@ -31,6 +27,9 @@ dependencies:
 
   # Navigation
   go_router: ^15.1.2
+
+  # Value equality (for domain entities)
+  equatable: ^2.0.7
 
   # Code Generation
   freezed_annotation: ^2.4.4
@@ -47,7 +46,6 @@ dev_dependencies:
   json_serializable: ^6.9.5
 
   # Testing
-  bloc_test: ^10.0.0
   mocktail: ^1.0.4
 
 flutter:
